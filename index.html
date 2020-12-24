@@ -1,0 +1,19 @@
+<html lang="en">
+<head>
+    <title>Video Surveillance</title>
+</head>
+<body>
+    <h1>Video Surveillance</h1>
+<button onclick="stop();">STOP</button><br><br>
+<!--
+    <img src="http://localhost:5000/api/?mode=0&show=True&path=/Users/x_pinchan1/projects/test/maskdetection/testdata/3.mov" alt="video is unavailable"/>
+    <img src="http://localhost:5000/api/?mode=0&show=True&path=0" alt="video is unavailable"/>
+-->
+<img src="http://localhost:5000/api/?mode=0&show=True&path=http://93.87.72.254:8090/mjpg/video.mjpg?COUNTER#.Wt9InV_SGHE.link" alt="video is unavailable"/>
+
+<script>
+    const stop = async () => {
+        await fetch('http://localhost:5000/stop/', {mode: "no-cors"});
+    }
+</script>
+</body>

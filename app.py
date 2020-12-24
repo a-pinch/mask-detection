@@ -1,7 +1,7 @@
 import cv2
 import time
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from PIL import Image
 import numpy as np
 import json
@@ -111,20 +111,21 @@ def inference(image,
     return output_info
 
 
-def run_on_video(video_path, output_video_name, conf_thresh):
+def run_on_video(video_path, conf_thresh, show_result=False):
+    global run_video
+    run_video = True
     cap = cv2.VideoCapture(video_path)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     fps = cap.get(cv2.CAP_PROP_FPS)
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    # writer = cv2.VideoWriter(output_video_name, fourcc, int(fps), (int(width), int(height)))
     total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     if not cap.isOpened():
         raise ValueError("Video open failed.")
         return
     status = True
     idx = 0
-    while status:
+    while run_video and status:
         start_stamp = time.time()
         status, img_raw = cap.read()
         img_raw = cv2.cvtColor(img_raw, cv2.COLOR_BGR2RGB)
@@ -136,16 +137,20 @@ def run_on_video(video_path, output_video_name, conf_thresh):
                       target_shape=(360, 360),
                       draw_result=True,
                       show_result=False)
-            cv2.imshow('image', img_raw[:, :, ::-1])
-            cv2.waitKey(1)
+#            cv2.imshow('image', img_raw[:, :, ::-1])
+#            cv2.waitKey(1)
             inference_stamp = time.time()
-            # writer.write(img_raw)
             write_frame_stamp = time.time()
             idx += 1
             print("%d of %d" % (idx, total_frames))
             print("read_frame:%f, infer time:%f, write time:%f" % (read_frame_stamp - start_stamp,
                                                                    inference_stamp - read_frame_stamp,
                                                                    write_frame_stamp - inference_stamp))
+            if show_result:
+                ret, jpeg = cv2.imencode('.jpg', img_raw[:, :, ::-1])
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes()  + b'\r\n\r\n')
+    cap.release()
 
 app = Flask(__name__)
 
@@ -153,10 +158,10 @@ app = Flask(__name__)
 def main_interface():
     print(request.args)
     path = request.args['path']
-    mode = request.args.get('mode', default = 1)
+    mode = request.args.get('mode', default = '1')
     show = request.args.get('show', default = False) == 'True'
     res = {'path': path, 'mode': mode}
-    if mode:
+    if mode == '1':
         if path.startswith('http'):
             resp = Request(path, headers={'User-Agent': 'Mozilla/5.0'})
             img = np.asarray(bytearray(urlopen(resp).read()), dtype="uint8")
@@ -166,7 +171,22 @@ def main_interface():
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         res = inference(img, show_result=show, target_shape=(360,360))
         return json.dumps(res, cls=NpEncoder) 
-    return jsonify(res)
+    else:
+        if path == '0':
+            path = 0
+        if show:
+            return Response(run_on_video(path, conf_thresh=0.5, show_result=show),
+                     mimetype='multipart/x-mixed-replace; boundary=frame')
+        else:
+            run_on_video(path, conf_thresh=0.5)
+            return jsonify(res)
+
+@app.route('/stop/', methods=["GET"])
+def stop_video_stream():
+    global run_video
+    run_video = False
+    return ('', 204)
+
 
 @app.after_request
 def add_headers(response):
