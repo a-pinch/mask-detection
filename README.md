@@ -1,6 +1,6 @@
-** Web Application to detect faces and determine whether they are  wearing mask. **
+Web Application to detect faces and determine whether they are  wearing mask.
 
-** It's implemented on flask and deep learning framwork PyTorch **
+It's implemented on flask and deep learning framwork PyTorch
 
 ## How to run
 
