@@ -2,6 +2,8 @@
 from threading import Thread
 import sys
 import cv2
+import time
+
 # import the Queue class from Python 3
 if sys.version_info >= (3, 0):
 	from queue import Queue
@@ -10,7 +12,7 @@ else:
 	from Queue import Queue
 
 class FileVideoStream:
-	def __init__(self, path, queueSize=128):
+	def __init__(self, path, queueSize=2):
 		# initialize the file video stream along with the boolean
 		# used to indicate if the thread should be stopped or not
 		self.stream = cv2.VideoCapture(path)
@@ -28,22 +30,31 @@ class FileVideoStream:
 
 	def update(self):
 		# keep looping infinitely
+		idx, ids = 0, 0
 		while True:
+			idx += 1
 			# if the thread indicator variable is set, stop the
 			# thread
 			if self.stopped:
-				return
+				break
+
 			# otherwise, ensure the queue has room in it
-			if not self.Q.full():
-				# read the next frame from the file
-				(grabbed, frame) = self.stream.read()
-				# if the `grabbed` boolean is `False`, then we have
-				# reached the end of the video file
-				if not grabbed:
-					self.stop()
-					return
-				# add the frame to the queue
-				self.Q.put(frame)
+			if self.Q.full(): 
+				self.Q.get()
+				ids += 1
+
+			# read the next frame from the file
+			(grabbed, frame) = self.stream.read()
+			# if the `grabbed` boolean is `False`, then we have
+			# reached the end of the video file
+			if not grabbed:
+				print('Frame is not grabbed. Video stream is stopped.')
+				self.stop()
+				break
+			# add the frame to the queue
+			self.Q.put(frame)
+			print("frames skipped  %d from %d" % (ids, idx))
+		self.stream.release()
 
 	def read(self):
 		# return next frame in the queue
@@ -58,6 +69,6 @@ class FileVideoStream:
 		# indicate that the thread should be stopped
 		self.stopped = True
 
-        def running(self):
+	def running(self):
                 # return True if the thread is running
                 return not self.stopped
