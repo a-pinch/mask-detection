@@ -9,6 +9,7 @@ from utils.anchor_generator import generate_anchors
 from utils.anchor_decode import decode_bbox
 from utils.nms import single_class_non_max_suppression
 from pytorch_loader import load_pytorch_model, pytorch_inference
+from centroidtracker import CentroidTracker
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -28,12 +29,15 @@ anchors_exp = np.expand_dims(anchors, axis=0)
 
 id2class = {0: 'Mask', 1: 'NoMask'}
 
+ct = CentroidTracker()
+
 def inference(image,
               conf_thresh=0.5,
               iou_thresh=0.4,
               target_shape=(160, 160),
               draw_result=True,
-              show_result=True
+              show_result=True,
+              track_results=True
               ):
     '''
     Main function of detection inference
@@ -85,9 +89,20 @@ def inference(image,
             else:
                 color = (255, 0, 0)
             cv2.rectangle(image, (xmin, ymin), (xmax, ymax), color, 2)
-            cv2.putText(image, "%s: %.2f" % (id2class[class_id], conf), (xmin + 2, ymin - 2),
+            if not track_results:
+                cv2.putText(image, "%s: %.2f" % (id2class[class_id], conf), (xmin + 2, ymin - 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, color)
         output_info.append([class_id, conf, xmin, ymin, xmax, ymax])
+
+    if track_results:
+        output_info = ct.update(output_info)
+        for(objectId, info) in output_info.items():
+            if info[0] == 0:
+                color = (0, 255, 0)
+            else:
+                color = (255, 0, 0)
+            cv2.putText(image, "%d %s: %.2f" % (objectId, id2class[info[0]], info[1]), (info[2] + 2, info[3] - 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color)
 
     if show_result:
         Image.fromarray(image).show()
@@ -95,8 +110,9 @@ def inference(image,
 
 class MaskStreamDetector:
 
-    def __init__(self, fvs):
+    def __init__(self, fvs, track):
         self.fvs = fvs
+        self.track = track
 
     def start(self):
         # start a thread to read frames from the file video stream
@@ -121,7 +137,8 @@ class MaskStreamDetector:
                           iou_thresh=0.5,
                           target_shape=(360, 360),
                           draw_result=True,
-                          show_result=False)
+                          show_result=False,
+                          track_results=self.track)
                 idx += 1
                 print("processed %d frames" % (idx))
                 if boundary:

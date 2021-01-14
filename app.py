@@ -29,6 +29,7 @@ def main_interface():
     path = request.args['path']
     mode = request.args.get('mode', default = '1')
     show = request.args.get('show', default = False) == 'True'
+    track = request.args.get('track', default = 'True') == 'True'
     res = {'path': path, 'mode': mode}
     global fvs
     global msd
@@ -55,7 +56,7 @@ def main_interface():
             fvs = FileVideoStream(path).start()    
 
         time.sleep(1.0)
-        msd = MaskStreamDetector(fvs)
+        msd = MaskStreamDetector(fvs, track)
 
         if show:
             boundary = 'frame'
